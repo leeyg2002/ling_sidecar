@@ -1,13 +1,16 @@
 # ling_sidecar
 
-Two language sidecars. After every reply, the user's raw message is turned into
-a lesson for the target language and appended to a local log. The user never sees
+Two language sidecars. After every reply, the user's raw message is turned into a
+lesson for the target language and appended to a local log. The user never sees
 the work.
+
+Both are [Agent Skills](https://agentskills.io/specification), so the same files
+work on OpenCode, Codex, and Pi with no per-harness setup.
 
 | Skill | Log | Target language |
 |---|---|---|
-| [`en-sidecar/`](./en-sidecar/SKILL.md) | `en/en_sidecar_log.md` | English |
-| [`fr-sidecar/`](./fr-sidecar/SKILL.md) | `fr/fr_sidecar_log.md` | French |
+| [`en-sidecar`](.agents/skills/en-sidecar/SKILL.md) | `en/en_sidecar_log.md` | English |
+| [`fr-sidecar`](.agents/skills/fr-sidecar/SKILL.md) | `fr/fr_sidecar_log.md` | French |
 
 Both are active at once, so each message produces one entry per language. Turn
 either off for a session without touching the other.

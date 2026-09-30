@@ -62,27 +62,29 @@ The agent is deliberately named `*-coach` rather than matching the skill, so the
 
 ```
 ling_sidecar/
-├── .gitignore                        # en/  fr/  .DS_Store
+├── .agents/
+│   └── skills/
+│       ├── en-sidecar/
+│       │   └── SKILL.md              # single source of truth for the worker spec
+│       └── fr-sidecar/
+│           └── SKILL.md
 ├── .opencode/
 │   ├── .gitignore                    # node_modules  package*.json  bun.lock
 │   ├── opencode.jsonc                # mode switch, agents, permissions
-│   ├── commands/
-│   │   ├── en-sidecar.md
-│   │   └── fr-sidecar.md
-│   └── skills/
-│       ├── en-sidecar/
-│       │   ├── SKILL.md              # single source of truth for the worker spec
-│       │   └── README.md
-│       └── fr-sidecar/
-│           ├── SKILL.md
-│           └── README.md
+│   └── commands/
+│       ├── en-sidecar.md
+│       └── fr-sidecar.md
 ├── docs/
 │   └── PRD.md
 ├── en/
 │   └── en_sidecar_log.md             # gitignored
-└── fr/
-    └── fr_sidecar_log.md             # gitignored
+├── fr/
+│   └── fr_sidecar_log.md             # gitignored
+├── .gitignore
+└── README.md                         # one shared doc for the pair
 ```
+
+The skills sit at `.agents/skills/` rather than under `.opencode/` so all three harnesses read the same files (§10.1). There is no per-skill README: one `README.md` at the repo root documents both, since the two were 99 and 109 lines and overlapping on most of their content.
 
 `en/` and `fr/` are gitignored: the logs are personal study material, not source. Rotated generations are kept indefinitely and never pruned — their filenames are self-describing and sort chronologically, so no index is needed.
 
@@ -382,7 +384,7 @@ consumer on the next pull.
 4. `.agents/skills/fr-sidecar/SKILL.md` — same skeleton plus the French-specific checks in §2.
 5. `.opencode/commands/en-sidecar.md` and `fr-sidecar.md` — the §6 surface.
 6. `.opencode/opencode.jsonc` — `en-coach` and `fr-coach` per §7.2, `instructions` set to **both**. No `plan` block (D26).
-7. One shared README at `.agents/skills/README.md` — behaviour, entry format, review tips, mode switch, and the cross-harness invocation table. Documenting the pair once removed ~208 lines of duplication; the French-specific differences are stated explicitly rather than as a second copy.
+7. One shared README at the repo root (`README.md`) — behaviour, entry format, review tips, mode switch, and the cross-harness invocation table. Documenting the pair once removed ~208 lines of duplication; the French-specific differences are stated explicitly rather than as a second copy.
 8. Import history: copy any existing `english-polish-log.md` to `en/en_sidecar_log.md`; create `fr/fr_sidecar_log.md`.
 9. Verify per §13. Most checks are now scripted rather than manual: the log-path and identifier audit, the append-semantics test, and the `opencode debug` discovery checks all run headless.
 
