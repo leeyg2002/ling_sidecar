@@ -20,18 +20,23 @@ If `$ARGUMENTS` is `status`, report the state of `en/en_sidecar_log.md`:
 
 ```bash
 LOG="en/en_sidecar_log.md"
-if [ -f "$LOG" ]; then
-  echo "entries: $(grep -c '^## ' "$LOG")"
-  echo "bytes:   $(wc -c < "$LOG")"
-  echo "last:    $(grep '^## ' "$LOG" | tail -1)"
-else
+if [ ! -f "$LOG" ]; then
   echo "no log yet"
+else
+  N=$(grep -c '^## ' "$LOG" || true)
+  echo "entries: $N"
+  echo "bytes:   $(wc -c < "$LOG" | tr -d ' ')"
+  if [ "$N" -gt 0 ]; then
+    echo "last:    $(grep '^## ' "$LOG" | tail -1)"
+  else
+    echo "last:    none (log is empty)"
+  fi
 fi
 ```
 
-Then report those numbers in one or two plain sentences. If the log has no
-entries, say so. Do not spawn a worker. Do not attempt to validate the format of
-any entry.
+Then report those numbers in one or two plain sentences. If the log exists but
+has no entries, say so explicitly rather than reporting a blank last-entry time.
+Do not spawn a worker. Do not attempt to validate the format of any entry.
 
 ## Case activate (default)
 

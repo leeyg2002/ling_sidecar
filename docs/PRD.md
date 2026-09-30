@@ -155,19 +155,19 @@ This is a deliberate reversal of the pattern that caused the original append bug
 1. **Rotate if oversized.** If the log is ≥ 983040 bytes, move it to `<log>_<timestamp>.md` and `touch` a fresh one.
 2. **Skip if degenerate** (§8.1) — write nothing and stop.
 3. **Decide `correction` or `lesson`** from §2.
-4. **Emit the header via bash**, so the timestamp is generated, never invented:
+4. **Write the body to a temp file, then append both parts.** The body goes to `en/.sidecar-entry.tmp` via the `write` tool — never to the log, since `write` overwrites. The header is generated in shell, so the timestamp can never be fabricated:
    ```bash
-   mkdir -p en && printf '\n## %s\n\n' "$(date '+%Y-%m-%d %H:%M:%S (%A)')" >> en/en_sidecar_log.md
+   mkdir -p en
+   printf '\n## `%s`\n\n' "$(date '+%Y-%m-%d %H:%M:%S (%A)')" >> en/en_sidecar_log.md
+   cat en/.sidecar-entry.tmp >> en/en_sidecar_log.md
+   rm -f en/.sidecar-entry.tmp
    ```
-5. **Append the body with a quoted heredoc**, so backticks, `$(...)`, or a line reading `EOF` in user text cannot break the write or execute anything:
-   ```bash
-   cat >> en/en_sidecar_log.md <<'SIDECAR_EOF'
-   ...entry body...
-   SIDECAR_EOF
-   ```
-6. **Never use the `write` tool for the log.** It overwrites. This is the one instruction that must not be relaxed.
+5. **The temp file is what makes the body safe**, so backticks, `$(...)`, or any line of user text pass through unexpanded and unexecuted. A quoted heredoc (`<<'EOF'`) was the earlier design and was rejected: it cannot carry the user's raw input through a shell unexpanded, so the body still had to be written by a tool first — the temp file is that tool's output, with no shell quoting in between.
+6. **Never use the `write` tool on the log itself.** It overwrites. This is the one instruction that must not be relaxed.
 
 Step 4 exists because the timestamp was previously requested politely in a prompt and the log ended up with five competing formats — including a literally-pasted placeholder and a fabricated `12:00:00 GMT+0000`. Generating the header in shell makes fabrication structurally impossible rather than merely discouraged.
+
+Step 5's temp file is not decoration. The body has to reach disk through the `write` tool either way — a quoted heredoc does not remove that step, it only adds a shell quoting boundary between the tool output and the log, which is exactly where the raw user input could get expanded. Writing to a temp file and `cat`-ing it appends the tool's bytes directly, so there is no shell interpretation of user text at all.
 
 ---
 
@@ -382,9 +382,9 @@ consumer on the next pull.
 4. `.agents/skills/fr-sidecar/SKILL.md` — same skeleton plus the French-specific checks in §2.
 5. `.opencode/commands/en-sidecar.md` and `fr-sidecar.md` — the §6 surface.
 6. `.opencode/opencode.jsonc` — `en-coach` and `fr-coach` per §7.2, `instructions` set to **both**. No `plan` block (D26).
-7. README for each skill — behaviour, entry format, review tips, mode switch, command surface.
+7. One shared README at `.agents/skills/README.md` — behaviour, entry format, review tips, mode switch, and the cross-harness invocation table. Documenting the pair once removed ~208 lines of duplication; the French-specific differences are stated explicitly rather than as a second copy.
 8. Import history: copy any existing `english-polish-log.md` to `en/en_sidecar_log.md`; create `fr/fr_sidecar_log.md`.
-9. Verify per §13.
+9. Verify per §13. Most checks are now scripted rather than manual: the log-path and identifier audit, the append-semantics test, and the `opencode debug` discovery checks all run headless.
 
 ---
 
@@ -397,7 +397,7 @@ consumer on the next pull.
 - [ ] A test message produces one entry in each log, with a real `date`-generated timestamp
 - [ ] `**Type:**` is correctly `correction` for target-language input and `lesson` otherwise
 - [ ] Neither log is truncated across multiple turns (append semantics hold)
-- [ ] A message containing backticks, `$(...)`, or a line `SIDECAR_EOF` is logged verbatim without executing
+- [ ] A message containing backticks, `$(...)`, or a line reading `EOF` is logged verbatim without executing
 - [ ] Degenerate input (`ok`, `thanks`, `got it`, a single token) produces no entry
 - [ ] All four modes behave correctly: none / en / fr / both
 - [ ] `/en-sidecar off` stops English and leaves French running

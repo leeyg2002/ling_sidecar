@@ -23,8 +23,16 @@ Both cases then get 2–3 alternatives, each with a tone/nuance note. The `**Typ
 field is what makes a log filterable — to review only real mistakes:
 
 ```bash
-awk '/^\*\*Type:\*\* correction$/{f=1} f' en/en_sidecar_log.md
+awk '/^## `/{if (t == "correction") print e; e = $0 "\n"; t = ""; next}
+     {e = e $0 "\n"}
+     /^\*\*Type:\*\* / {t = $2}
+     END {if (t == "correction") print e}' en/en_sidecar_log.md
 ```
+
+This buffers one entry at a time and emits only those tagged `correction`, so
+lessons are excluded. Matching on the `**Type:**` line alone and printing
+everything after the first hit would leak every later lesson. Note the `$2` —
+`$2` is the value (`correction`), because `**Type:**` is the first field.
 
 French additionally checks gender and number agreement, chooses `tu` or `vous`
 deliberately (stating which and why), and flags false friends such as
