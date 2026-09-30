@@ -1,0 +1,49 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    ".opencode/skills/en-sidecar/SKILL.md",
+    ".opencode/skills/fr-sidecar/SKILL.md"
+  ],
+  "agent": {
+    "en-coach": {
+      "mode": "subagent",
+      "description": "Compose an English lesson from the user's message: correct it if it is already English, translate it into English if it is not. Appends one structured entry to en/en_sidecar_log.md.",
+      "permission": {
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "edit": "allow",
+        "write": "allow",
+        "bash": "allow",
+        "task": "deny"
+      }
+    },
+    "fr-coach": {
+      "mode": "subagent",
+      "description": "Compose a French lesson from the user's message: correct it if it is already French, translate it into French if it is not. Appends one structured entry to fr/fr_sidecar_log.md.",
+      "permission": {
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "edit": "allow",
+        "write": "allow",
+        "bash": "allow",
+        "task": "deny"
+      }
+    },
+    "plan": {
+      "permission": {
+        "edit": {
+          "*": "ask",
+          "en/**": "allow",
+          "fr/**": "allow"
+        },
+        "write": {
+          "*": "ask",
+          "en/**": "allow",
+          "fr/**": "allow"
+        }
+      }
+    }
+  }
+}
