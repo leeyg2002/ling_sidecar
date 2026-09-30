@@ -373,6 +373,7 @@ consumer on the next pull.
 | D24 | Worker prompt block kept byte-identical across the branch | The single-source-of-truth rule (D12) must survive the portability refactor, or the duplication class that caused the original append bug returns |
 | D25 | Canonical copy committed in-repo only, not symlinked into `~/.agents/skills/` | Avoids a global install that would make the sidecar fire in every project on the machine. Distribution stays explicit, per consumer (§10.4) |
 | D26 | `plan` permission block removed | No functional benefit, real data-loss risk (D17) |
+| D27 | `.gitattributes` pins `eol=lf` | A Windows clone would otherwise check out CRLF, which silently breaks `^## ` ` pattern matching against the markdown. Not applied to `en/`/`fr/`: those are gitignored, so git never sees them. The logs are written by the POSIX shell and are LF regardless. |
 
 ---
 
@@ -423,6 +424,7 @@ Note: `[ ]` entry-format checks above are manual. There is no automated validato
 | Rotations never pruned | `en/` grows without bound | **Accepted** (D19); filenames are self-describing |
 | Not a git repo yet | Symlinks in consumers will not resolve until step 1 | Resolved by step 1 |
 | Codex and Pi run the work inline | No context isolation on those harnesses; sidecar reasoning sits in the main conversation, so a slip could leak commentary into the reply | **Accepted** (D23). Fixable with `.codex/agents/*.toml` (built in) or `.pi/agents/*.md` (needs an extension) — §10.3 |
+| POSIX-shell dependency | Every code block in `SKILL.md` and both commands assumes `sh`/`bash` (`printf`, `$(date …)`, `[ -f ]`, `wc -c`, `rm -f`). On Windows these need Git Bash or WSL; a model improvising in PowerShell risks malformed entries or a truncated log | **Accepted for now** (D27). Making it portable means extracting a script with a PowerShell sibling — a listed future improvement. `awk` in `README.md` has the same dependency, but is human-facing only |
 | Implicit skill invocation is host-dependent | Codex and Pi may not load the skill after every reply the way OpenCode's `instructions` array guarantees | **Accepted**. D22 makes the skill *discoverable* everywhere; only OpenCode has a deterministic per-turn gate (§5) |
 
 ### Future improvements
@@ -433,6 +435,7 @@ Note: `[ ]` entry-format checks above are manual. There is no automated validato
 - Add `.codex/agents/{en,fr}-coach.toml` for real Codex subagent isolation (§10.3)
 - Evaluate a Pi subagent extension before committing to `.pi/agents/*.md` (§10.3)
 - Extract the rotate/skip/append steps into a `scripts/` helper so all three harnesses run identical shell, and serialisation is enforced in code rather than by model discipline
+- Ship that `scripts/` helper with a PowerShell sibling, and document Git Bash / WSL as the supported route for Windows until then (the `SKILL.md` shell blocks cannot run under `cmd.exe` or PowerShell as written)
 - Consolidate other projects onto this design via the symlink set in §10.4
 - Consider `color` on each agent for visual distinction in the TUI
 - Add further languages, following the same three-namespace pattern

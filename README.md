@@ -26,16 +26,16 @@ Both cases then get 2–3 alternatives, each with a tone/nuance note. The `**Typ
 field is what makes a log filterable — to review only real mistakes:
 
 ```bash
-awk '/^## `/{if (t == "correction") print e; e = $0 "\n"; t = ""; next}
-     {e = e $0 "\n"}
-     /^\*\*Type:\*\* / {t = $2}
-     END {if (t == "correction") print e}' en/en_sidecar_log.md
+awk 'BEGIN{RS="## `"; ORS=""} /\*\*Type:\*\* correction/{print "## `"$0"\n"}' en/en_sidecar_log.md
 ```
 
-This buffers one entry at a time and emits only those tagged `correction`, so
-lessons are excluded. Matching on the `**Type:**` line alone and printing
-everything after the first hit would leak every later lesson. Note the `$2` —
-`$2` is the value (`correction`), because `**Type:**` is the first field.
+This splits the log on each `` ## ` `` header and reprints only the records
+tagged `correction`, so lessons are excluded and each entry stays intact. It
+tolerates CRLF, so it also works on a log produced on Windows.
+
+Note that `awk` is not present in stock Windows — you need Git Bash or WSL for
+this one. Everything the agent itself does uses the POSIX shell documented in
+`SKILL.md`, so Windows users need a POSIX environment either way.
 
 French additionally checks gender and number agreement, chooses `tu` or `vous`
 deliberately (stating which and why), and flags false friends such as

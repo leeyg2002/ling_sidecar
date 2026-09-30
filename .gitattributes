@@ -1,0 +1,4 @@
+# Normalise line endings in the repository so a Windows clone does not check out
+# CRLF, which would silently break pattern matching against the markdown files.
+# Does not apply to en/ and fr/ — those are gitignored, so git never sees them.
+* text=auto eol=lf
