@@ -1,8 +1,8 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "instructions": [
-    ".opencode/skills/en-sidecar/SKILL.md",
-    ".opencode/skills/fr-sidecar/SKILL.md"
+    ".agents/skills/en-sidecar/SKILL.md",
+    ".agents/skills/fr-sidecar/SKILL.md"
   ],
   "agent": {
     "en-coach": {
@@ -29,20 +29,6 @@
         "write": "allow",
         "bash": "allow",
         "task": "deny"
-      }
-    },
-    "plan": {
-      "permission": {
-        "edit": {
-          "*": "ask",
-          "en/**": "allow",
-          "fr/**": "allow"
-        },
-        "write": {
-          "*": "ask",
-          "en/**": "allow",
-          "fr/**": "allow"
-        }
       }
     }
   }

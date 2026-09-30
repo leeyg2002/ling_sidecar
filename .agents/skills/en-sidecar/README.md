@@ -1,8 +1,26 @@
 # en-sidecar
 
-The English half of the sidecar pair. After every reply you send, a worker
-turns the user's raw message into an English lesson and appends it to
+The English half of the sidecar pair. After every reply you send, the user's raw
+message is turned into an English lesson and appended to
 `en/en_sidecar_log.md`. The user never sees the work.
+
+## Works on OpenCode, Codex, and Pi
+
+The skill lives at `.agents/skills/en-sidecar/SKILL.md` — the
+[Agent Skills](https://agentskills.io/specification) standard location, read
+natively by all three harnesses:
+
+| Harness | How to invoke |
+|---|---|
+| OpenCode | `/en-sidecar`, or fires automatically via `instructions` |
+| Codex | `$en-sidecar` |
+| Pi | `/skill:en-sidecar` |
+
+Worker *dispatch* differs per harness, so the skill body branches: if a
+registered `en-coach` subagent exists it is delegated to, otherwise the work is
+done inline. Both paths follow the identical worker prompt. On Codex and Pi that
+means no context isolation until you add a per-harness agent file — see
+`docs/PRD.md` §10.
 
 ## Behaviour
 

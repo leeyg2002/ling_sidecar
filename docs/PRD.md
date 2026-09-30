@@ -95,8 +95,8 @@ Mode is a pure function of the `instructions` array in `.opencode/opencode.jsonc
 | Mode | `instructions` |
 |---|---|
 | **none** | `[]` |
-| **en only** | `[".opencode/skills/en-sidecar/SKILL.md"]` |
-| **fr only** | `[".opencode/skills/fr-sidecar/SKILL.md"]` |
+| **en only** | `[".agents/skills/en-sidecar/SKILL.md"]` |
+| **fr only** | `[".agents/skills/fr-sidecar/SKILL.md"]` |
 | **both** | both paths |
 
 **This is a soft gate, and the tradeoff is deliberate.** A skill listed in `instructions` is force-loaded every turn, so a designated sidecar fires *deterministically* — this is why the activation rule in §2 is a genuine guarantee rather than a hope. The cost: an undesignated skill is still discovered by the `skill` tool, so nothing *hard-denies* it. "En only" means *en always fires; fr is merely not instructed to fire.* A determined invocation of `/fr-sidecar` or `@fr-sidecar` will still start French.
@@ -246,28 +246,98 @@ Custom commands are markdown files in `.opencode/commands/` — **plural**. The 
 
 ### 9.6 Discovery
 
-Skills are discovered from `.opencode/skills/<name>/SKILL.md`, `~/.config/opencode/skills/`, `.claude/skills/`, `.agents/skills/`, walking up from cwd to the git worktree. Verified: no `.opencode/skills` directory exists at any level between `/` and this project, so there is no accidental leakage.
+OpenCode discovers skills from `.opencode/skills/`, `~/.config/opencode/skills/`, `.claude/skills/`, and `.agents/skills/`, walking up from cwd to the git worktree. This project uses **`.agents/skills/`**, the cross-harness standard location, which OpenCode, Codex, and Pi all read. See §10.
 
 ---
 
-## 10. Distribution
+## 10. Portability and distribution
 
-This repository is both the canonical source and a live consumer. Its own skills live natively at `.opencode/skills/*` — a repository cannot symlink to itself.
+### 10.1 One skill directory, three harnesses
 
-To enable sidecars in another project, commit **relative** symlinks:
+Skills live at `.agents/skills/{en,fr}-sidecar/SKILL.md`. This is the
+[Agent Skills](https://agentskills.io/specification) standard location, read by:
+
+| Harness | Project scope | Global scope |
+|---|---|---|
+| OpenCode | `.agents/skills/`, walking up to the git worktree | `~/.agents/skills/` |
+| Codex | `$CWD`, ancestors, and `$REPO_ROOT` `.agents/skills/` | `~/.agents/skills/` |
+| Pi | `.agents/skills/`, cwd to repo root | `~/.agents/skills/` |
+
+Moving off `.opencode/skills/` is what makes a single copy work everywhere. No
+per-harness skill configuration is needed — all three read the same files.
+
+### 10.2 What does *not* port: the worker dispatch
+
+Skill *discovery* is universal; subagent *dispatch* is not. Each harness has an
+unrelated API:
+
+- **OpenCode** — `task({ subagent_type: "en-coach" })`, agent defined in `opencode.jsonc`
+- **Codex** — agents are TOML files in `.codex/agents/*.toml`; builtins are `default`/`worker`/`explorer`
+- **Pi** — agents are Markdown in `.pi/agents/`, and Pi has **no built-in subagent tool**; it needs a third-party extension
+
+So `SKILL.md` must not hardcode one harness's API. Each skill body now specifies
+the *work* and branches at execution time (D22):
+
+```markdown
+- If your harness offers a subagent or delegate tool **and** an agent named
+  `en-coach` is registered, spawn it and pass the worker prompt below
+  **verbatim**, with `<user input>` replaced by the user's raw message.
+- Otherwise, follow the worker prompt below yourself, inline.
+```
+
+This degrades rather than breaks: OpenCode delegates to the configured subagent;
+Codex and Pi do the work inline until a per-harness agent file is added. The
+worker prompt block itself is byte-identical across that branch — it remains the
+single source of truth (D12).
+
+### 10.3 Adding real subagent isolation later
+
+Optional per-harness upgrades, not required for the skill to work:
+
+- `.codex/agents/en-coach.toml` and `fr-coach.toml` — Codex subagents are built in
+- `.pi/agents/*.md` — requires installing a Pi subagent extension first
+
+Neither changes `SKILL.md`; the branch already prefers a registered subagent
+when one exists.
+
+### 10.4 Distribution to other projects
+
+The canonical source is this repo. A consumer enables sidecars by committing
+**relative** symlinks:
 
 ```
-<consumer>/.opencode/skills/en-sidecar   ->  ../../<path>/ling_sidecar/.opencode/skills/en-sidecar
-<consumer>/.opencode/skills/fr-sidecar   ->  ../../<path>/ling_sidecar/.opencode/skills/fr-sidecar
+<consumer>/.agents/skills/en-sidecar     ->  ../../<path>/ling_sidecar/.agents/skills/en-sidecar
+<consumer>/.agents/skills/fr-sidecar     ->  ../../<path>/ling_sidecar/.agents/skills/fr-sidecar
 <consumer>/.opencode/commands/en-sidecar.md ->  ../../<path>/ling_sidecar/.opencode/commands/en-sidecar.md
 <consumer>/.opencode/commands/fr-sidecar.md ->  ../../<path>/ling_sidecar/.opencode/commands/fr-sidecar.md
 ```
 
-Relative symlinks are committed to the consumer's repo, so they survive either repository being moved or cloned. Absolute paths break the moment either location changes.
+Only the `commands/` symlinks are OpenCode-specific. The skill symlinks are
+harness-neutral, so a Codex or Pi consumer ignores the command links and still
+discovers the skills.
 
-The consumer keeps its **own** `opencode.jsonc` — its `instructions` array *is* its mode switch and cannot be shared — and its own `en/` and `fr/` log directories.
+Relative symlinks are committed to the consumer's repo, so they survive either
+repository being moved or cloned. Absolute paths break the moment either location
+changes.
 
-Because each agent block is metadata only (§7.2), there is no duplicated specification to drift. Updating a skill in this repo updates it for every consumer on the next pull.
+An OpenCode consumer keeps its **own** `opencode.jsonc` — its `instructions`
+array *is* its mode switch and cannot be shared — and its own `en/` and `fr/`
+log directories.
+
+Because each agent block is metadata only (§7.2), there is no duplicated
+specification to drift. Updating a skill in this repo updates it for every
+consumer on the next pull.
+
+### 10.5 Known harness caveats
+
+- **Pi requires project trust.** In an untrusted project, `.agents/skills/` is
+  silently ignored. If the skills do not appear in Pi, check trust before
+  suspecting the layout.
+- **Codex registers nested `SKILL.md` files** found beneath an installed skill
+  directory ([openai/codex#22275](https://github.com/openai/codex/issues/22275)).
+  These skill directories contain no nested `SKILL.md`, so nothing is
+  double-registered — but do not add one without reading that issue.
+- **Codex must not be sandboxed read-only**, or the log write fails.
 
 ---
 
@@ -287,15 +357,20 @@ Because each agent block is metadata only (§7.2), there is no duplicated specif
 | D10 | Per-language commands, not one parameterised command | No argument parsing; each carries its own language |
 | D11 | Command surface is on / off / status | Natural language also deactivates, so toggle state is unnecessary |
 | D12 | Commands are thin; `SKILL.md` is the only spec | Closes the duplication class that caused the original append bug |
-| D13 | `printf` header + quoted heredoc | Makes timestamp fabrication and heredoc injection structurally impossible |
+| D13 | `printf` header + temp-file body, appended by `cat` | The timestamp comes from a real `date` call, so fabrication is structurally impossible. (Corrected from an earlier quoted-heredoc design, which could not pass the user's raw input through unexpanded.) |
 | D14 | Mechanical skip rule, not semantic | Semantic judgement produced five inconsistent timestamp formats |
 | D15 | `**Type:**` field | Makes the log filterable for actual mistakes |
 | D16 | Target-language label as the field name | Correct for both correction and lesson cases |
-| D17 | `plan` keeps a narrow write carve-out | A manually invoked worker under `plan` can still log |
-| D18 | `{"*": "ask", ...}` explicit fallback | Makes the narrow carve-out self-documenting; last-match-wins |
+| D17 | No `plan` write carve-out | Reversed from the original D17. The carve-out could not help: the append needs a `bash` step, which plan mode denies, so a `write` grant alone never completes an entry. Worse, `write allow en/**` would let a read-only agent overwrite the log, which has no version-control recovery. Removed outright. |
+| D18 | `{"*": "ask", ...}` explicit fallback | Retained as a config style for any future narrow carve-out; no longer used, since the D17 block is gone. |
 | D19 | Logs gitignored, rotations kept forever | Personal study material; filenames self-describe, so no index needed |
 | D20 | Relative symlinks for distribution | Survives moves and clones of either repo |
 | D21 | Soft gate accepted over hard denial | Deterministic firing judged more valuable than hard denial (§9.1) |
+| D22 | Skills moved to `.agents/skills/` | The Agent Skills standard path, read natively by OpenCode, Codex, and Pi. One committed copy serves all three with no per-harness config (§10.1) |
+| D23 | `SKILL.md` branches on subagent availability instead of naming one API | Worker dispatch is the only non-portable layer. Degrading to inline execution works everywhere today; hardcoding `task`/`subagent_type` would silently no-op on Codex and Pi (§10.2) |
+| D24 | Worker prompt block kept byte-identical across the branch | The single-source-of-truth rule (D12) must survive the portability refactor, or the duplication class that caused the original append bug returns |
+| D25 | Canonical copy committed in-repo only, not symlinked into `~/.agents/skills/` | Avoids a global install that would make the sidecar fire in every project on the machine. Distribution stays explicit, per consumer (§10.4) |
+| D26 | `plan` permission block removed | No functional benefit, real data-loss risk (D17) |
 
 ---
 
@@ -303,10 +378,10 @@ Because each agent block is metadata only (§7.2), there is no duplicated specif
 
 1. `git init` + initial commit. Nothing distributes correctly without it, and it makes the symlink target a real repo.
 2. `.gitignore` (`en/`, `fr/`, `.DS_Store`) and `.opencode/.gitignore`.
-3. `.opencode/skills/en-sidecar/SKILL.md` — frontmatter, the §7.3 worker spec, `en/en_sidecar_log.md`, `en-coach`, English-specific correction and translation rules.
-4. `.opencode/skills/fr-sidecar/SKILL.md` — same skeleton plus the French-specific checks in §2.
+3. `.agents/skills/en-sidecar/SKILL.md` — frontmatter, the §7.3 worker spec, `en/en_sidecar_log.md`, `en-coach`, English-specific correction and translation rules.
+4. `.agents/skills/fr-sidecar/SKILL.md` — same skeleton plus the French-specific checks in §2.
 5. `.opencode/commands/en-sidecar.md` and `fr-sidecar.md` — the §6 surface.
-6. `.opencode/opencode.jsonc` — `en-coach` and `fr-coach` per §7.2, `plan` permissions per D18, `instructions` set to **both**.
+6. `.opencode/opencode.jsonc` — `en-coach` and `fr-coach` per §7.2, `instructions` set to **both**. No `plan` block (D26).
 7. README for each skill — behaviour, entry format, review tips, mode switch, command surface.
 8. Import history: copy any existing `english-polish-log.md` to `en/en_sidecar_log.md`; create `fr/fr_sidecar_log.md`.
 9. Verify per §13.
@@ -341,17 +416,22 @@ Note: `[ ]` entry-format checks above are manual. There is no automated validato
 | Global `model: ollama/qwen3.5:9b-mlx` is dead config | Workers inherit an uncontrolled fallback model; language feedback quality is not under your control | **Accepted** (D6, D7). Fixing means adding `provider.ollama` to a global file outside this project |
 | Soft gate (§5) | An undesignated sidecar can still be started deliberately | **Accepted** (D21). A hard gate is available (§9.1) if this ever matters |
 | No automated format validation | Silent entry-format drift after a model update would go unnoticed | **Accepted**. `/…-sidecar status` catches non-firing only |
-| `plan` can write the logs | A read-only primary could modify the sole artifact, which has no version-control recovery | **Accepted** (D17), narrowed by D18 |
+| `plan` could write the logs | A read-only primary could overwrite the sole artifact, which has no version-control recovery | **Resolved** (D17, D26). The carve-out is removed; plan mode can no longer touch `en/` or `fr/` |
 | Two workers per turn | Roughly 2x latency and compute per message in "both" mode | Known cost of the design |
 | Rotations never pruned | `en/` grows without bound | **Accepted** (D19); filenames are self-describing |
 | Not a git repo yet | Symlinks in consumers will not resolve until step 1 | Resolved by step 1 |
+| Codex and Pi run the work inline | No context isolation on those harnesses; sidecar reasoning sits in the main conversation, so a slip could leak commentary into the reply | **Accepted** (D23). Fixable with `.codex/agents/*.toml` (built in) or `.pi/agents/*.md` (needs an extension) — §10.3 |
+| Implicit skill invocation is host-dependent | Codex and Pi may not load the skill after every reply the way OpenCode's `instructions` array guarantees | **Accepted**. D22 makes the skill *discoverable* everywhere; only OpenCode has a deterministic per-turn gate (§5) |
 
 ### Future improvements
 
 - Add `provider.ollama` to the global config and pin the workers to a fast free model
 - Pin a specific model per worker to make log quality reproducible and measurable
 - Add a validator that checks recent entries for header, required fields, and plausible target-language content
-- Consolidate other projects onto this design via the symlink set in §10
+- Add `.codex/agents/{en,fr}-coach.toml` for real Codex subagent isolation (§10.3)
+- Evaluate a Pi subagent extension before committing to `.pi/agents/*.md` (§10.3)
+- Extract the rotate/skip/append steps into a `scripts/` helper so all three harnesses run identical shell, and serialisation is enforced in code rather than by model discipline
+- Consolidate other projects onto this design via the symlink set in §10.4
 - Consider `color` on each agent for visual distinction in the TUI
 - Add further languages, following the same three-namespace pattern
 

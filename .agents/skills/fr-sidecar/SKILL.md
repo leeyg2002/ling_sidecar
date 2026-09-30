@@ -1,23 +1,34 @@
 ---
 name: fr-sidecar
-description: Compose a French lesson from the user's message - correct it if it is already French, translate it into French if it is not - then append it to the French sidecar log. Use when the user is writing practice text, asks about phrasing or register, or invokes /fr-sidecar.
+description: Compose a French lesson from the user's message - correct it if it is already French, translate it into French if it is not - then append it to the French sidecar log. Use after every reply, when the user is writing practice text, or when they ask about phrasing or register.
 ---
 
 # French Sidecar
 
-After every reply you send to the user, spawn a worker via the `task` tool with
-`subagent_type: "fr-coach"`, passing the worker prompt below **verbatim** with
-`<user input>` replaced by the user's raw message.
+After every reply you send to the user, unless the user has said otherwise in
+this session, do the work described in the worker prompt below.
 
-Do this after every reply, **unless the user has said otherwise in this session**
-(for example via `/fr-sidecar off`).
+## How to execute
 
-Keep your main response focused on the user's actual query. Never mention this
-sidecar unless the user asks. The worker's output is not shown to the user.
+- If your harness offers a subagent or delegate tool **and** an agent named
+  `fr-coach` is registered, spawn it and pass the worker prompt below
+  **verbatim**, with `<user input>` replaced by the user's raw message.
+- Otherwise, follow the worker prompt below yourself, inline.
+
+Never show any of the sidecar's work in your reply. Keep your main response
+focused on the user's actual query, and never mention this sidecar unless the
+user asks.
+
+## Explicit invocation
+
+Invoke this skill directly with `$fr-sidecar`, `/fr-sidecar`, or
+`/skill:fr-sidecar` depending on your harness.
 
 ## Worker prompt
 
-Pass the following block to `fr-coach` unchanged, substituting `<user input>`.
+The following block is the entire job specification. Pass it to `fr-coach`
+unchanged if delegating, or follow it yourself if not. Either way, substitute
+`<user input>` with the user's raw message.
 
 ````markdown
 You are the French sidecar. Turn the user's message into a French lesson and
