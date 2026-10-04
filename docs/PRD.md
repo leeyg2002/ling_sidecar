@@ -64,6 +64,7 @@ The agent is deliberately named `*-coach` rather than matching the skill, so the
 ling_sidecar/
 ├── .agents/
 │   └── skills/
+│       ├── README.md                 # full reference for the pair
 │       ├── en-sidecar/
 │       │   └── SKILL.md              # single source of truth for the worker spec
 │       └── fr-sidecar/
@@ -81,10 +82,12 @@ ling_sidecar/
 ├── fr/
 │   └── fr_sidecar_log.md             # gitignored
 ├── .gitignore
-└── README.md                         # one shared doc for the pair
+└── README.md                         # short entry point, links to the reference
 ```
 
-The skills sit at `.agents/skills/` rather than under `.opencode/` so all three harnesses read the same files (§10.1). There is no per-skill README: one `README.md` at the repo root documents both, since the two were 99 and 109 lines and overlapping on most of their content.
+The skills sit at `.agents/skills/` rather than under `.opencode/` so all three harnesses read the same files (§10.1).
+
+Documentation is split across two files, one shared per the pair rather than per skill. `.agents/skills/README.md` is the full reference — behaviour, entry format, the corrections-only filter, and portability. The root `README.md` is a short entry point that introduces the two sidecars and links to the reference. Earlier there was no per-skill README and a single shared root `README.md`, since the two original skill READMEs were 99 and 109 lines and overlapped on most of their content; the split keeps that de-duplication while putting the detail next to the files it describes, which is where a reader browsing `.agents/skills/` will look (D28). A loose `README.md` inside `.agents/skills/` is not itself a skill — discovery requires a directory containing `SKILL.md` — so it does not trip the nested-`SKILL.md` caveat in §10.5.
 
 `en/` and `fr/` are gitignored: the logs are personal study material, not source. Rotated generations are kept indefinitely and never pruned — their filenames are self-describing and sort chronologically, so no index is needed.
 
@@ -374,6 +377,7 @@ consumer on the next pull.
 | D25 | Canonical copy committed in-repo only, not symlinked into `~/.agents/skills/` | Avoids a global install that would make the sidecar fire in every project on the machine. Distribution stays explicit, per consumer (§10.4) |
 | D26 | `plan` permission block removed | No functional benefit, real data-loss risk (D17) |
 | D27 | `.gitattributes` pins `eol=lf` | A Windows clone would otherwise check out CRLF, which silently breaks `^## ` ` pattern matching against the markdown. Not applied to `en/`/`fr/`: those are gitignored, so git never sees them. The logs are written by the POSIX shell and are LF regardless. |
+| D28 | Full reference moved to `.agents/skills/README.md`; root `README.md` is a short entry point | Two audiences. Someone browsing `.agents/skills/` expects the detail next to the `SKILL.md` files, and a harness reading the repo root needs a page that says what the thing is in under a screen. Still one shared doc for the pair, not one per skill — the ~208 lines of duplication removed in the original consolidation are not reintroduced. |
 
 ---
 
@@ -385,7 +389,7 @@ consumer on the next pull.
 4. `.agents/skills/fr-sidecar/SKILL.md` — same skeleton plus the French-specific checks in §2.
 5. `.opencode/commands/en-sidecar.md` and `fr-sidecar.md` — the §6 surface.
 6. `.opencode/opencode.jsonc` — `en-coach` and `fr-coach` per §7.2, `instructions` set to **both**. No `plan` block (D26).
-7. One shared README at the repo root (`README.md`) — behaviour, entry format, review tips, mode switch, and the cross-harness invocation table. Documenting the pair once removed ~208 lines of duplication; the French-specific differences are stated explicitly rather than as a second copy.
+7. Two READMEs, one per audience (D28) — `.agents/skills/README.md` carries behaviour, entry format, review tips, and the cross-harness invocation table, sitting beside the files it describes. The root `README.md` is a short entry point that introduces the pair and links to the reference. Documenting the pair once rather than per skill removed ~208 lines of duplication; the French-specific differences are stated explicitly rather than as a second copy, and the root page deliberately restates none of it.
 8. Import history: copy any existing `english-polish-log.md` to `en/en_sidecar_log.md`; create `fr/fr_sidecar_log.md`.
 9. Verify per §13. Most checks are now scripted rather than manual: the log-path and identifier audit, the append-semantics test, and the `opencode debug` discovery checks all run headless.
 
@@ -424,7 +428,7 @@ Note: `[ ]` entry-format checks above are manual. There is no automated validato
 | Rotations never pruned | `en/` grows without bound | **Accepted** (D19); filenames are self-describing |
 | Not a git repo yet | Symlinks in consumers will not resolve until step 1 | Resolved by step 1 |
 | Codex and Pi run the work inline | No context isolation on those harnesses; sidecar reasoning sits in the main conversation, so a slip could leak commentary into the reply | **Accepted** (D23). Fixable with `.codex/agents/*.toml` (built in) or `.pi/agents/*.md` (needs an extension) — §10.3 |
-| POSIX-shell dependency | Every code block in `SKILL.md` and both commands assumes `sh`/`bash` (`printf`, `$(date …)`, `[ -f ]`, `wc -c`, `rm -f`). On Windows these need Git Bash or WSL; a model improvising in PowerShell risks malformed entries or a truncated log | **Accepted for now** (D27). Making it portable means extracting a script with a PowerShell sibling — a listed future improvement. `awk` in `README.md` has the same dependency, but is human-facing only |
+| POSIX-shell dependency | Every code block in `SKILL.md` and both commands assumes `sh`/`bash` (`printf`, `$(date …)`, `[ -f ]`, `wc -c`, `rm -f`). On Windows these need Git Bash or WSL; a model improvising in PowerShell risks malformed entries or a truncated log | **Accepted for now** (D27). Making it portable means extracting a script with a PowerShell sibling — a listed future improvement. `awk` in `.agents/skills/README.md` has the same dependency, but is human-facing only |
 | Implicit skill invocation is host-dependent | Codex and Pi may not load the skill after every reply the way OpenCode's `instructions` array guarantees | **Accepted**. D22 makes the skill *discoverable* everywhere; only OpenCode has a deterministic per-turn gate (§5) |
 
 ### Future improvements
