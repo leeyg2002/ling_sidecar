@@ -1,26 +1,33 @@
 # ling_sidecar
 
-Two language sidecars. After every reply, the user's raw message is turned into a
-lesson for the target language and appended to a local log. The user never sees
-the work.
+A sidecar is a quiet companion that runs alongside your chat. The conversation is
+never interrupted, but everything you type becomes practice material.
+
+There are two of them today, one for English and one for French. Adding a third
+follows the same pattern: a skill, a subagent, and a log.
+
+After every reply, each sidecar spawns a subagent that turns your raw message into
+a lesson — a correction if you already wrote in that language, a translation if
+you didn't — then offers 2–3 alternative phrasings with a note on tone and nuance.
+Every lesson lands in a local log.
 
 Both are [Agent Skills](https://agentskills.io/specification), so the same files
 work on OpenCode, Codex, and Pi with no per-harness setup.
 
-| Skill | Log | Target language |
-|---|---|---|
-| [`en-sidecar`](en-sidecar/SKILL.md) | `en/en_sidecar_log.md` | English |
-| [`fr-sidecar`](fr-sidecar/SKILL.md) | `fr/fr_sidecar_log.md` | French |
+| Skill                               | Log                    | Target language |
+| ----------------------------------- | ---------------------- | --------------- |
+| [`en-sidecar`](en-sidecar/SKILL.md) | `en/en_sidecar_log.md` | English         |
+| [`fr-sidecar`](fr-sidecar/SKILL.md) | `fr/fr_sidecar_log.md` | French          |
 
 Both are active at once, so each message produces one entry per language. Turn
 either off for a session without touching the other.
 
 ## Behaviour
 
-| Input | Type | What happens |
-|---|---|---|
-| Target language | `correction` | grammar, spelling, awkward phrasing fixed |
-| Any other language | `lesson` | translated naturally, with a literal gloss where useful |
+| Input              | Type         | What happens                                            |
+| ------------------ | ------------ | ------------------------------------------------------- |
+| Target language    | `correction` | grammar, spelling, awkward phrasing fixed               |
+| Any other language | `lesson`     | translated naturally, with a literal gloss where useful |
 
 Both cases then get 2–3 alternatives, each with a tone/nuance note. The `**Type:**`
 field is what makes a log filterable — to review only real mistakes:
@@ -29,7 +36,7 @@ field is what makes a log filterable — to review only real mistakes:
 awk 'BEGIN{RS="## `"; ORS=""} /\*\*Type:\*\* correction/{print "## `"$0"\n"}' en/en_sidecar_log.md
 ```
 
-This splits the log on each `` ## ` `` header and reprints only the records
+This splits the log on each ``## ` `` header and reprints only the records
 tagged `correction`, so lessons are excluded and each entry stays intact. It
 tolerates CRLF, so it also works on a log produced on Windows.
 
@@ -63,11 +70,11 @@ of `**In English:**`.
 
 ## Invoking
 
-| Harness | Automatic | Explicit |
-|---|---|---|
-| OpenCode | yes, via `instructions` | `/en-sidecar`, `/fr-sidecar` |
-| Codex | implicit, if the description matches | `$en-sidecar`, `$fr-sidecar` |
-| Pi | implicit, if the description matches | `/skill:en-sidecar`, `/skill:fr-sidecar` |
+| Harness  | Automatic                            | Explicit                                 |
+| -------- | ------------------------------------ | ---------------------------------------- |
+| OpenCode | yes, via `instructions`              | `/en-sidecar`, `/fr-sidecar`             |
+| Codex    | implicit, if the description matches | `$en-sidecar`, `$fr-sidecar`             |
+| Pi       | implicit, if the description matches | `/skill:en-sidecar`, `/skill:fr-sidecar` |
 
 Explicit arguments: bare name activates, `off` stops for the session, `status`
 reports entry count, byte size, and last-entry time. On OpenCode these are
