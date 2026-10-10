@@ -10,9 +10,19 @@ this session, do the work described in the worker prompt below.
 
 ## How to execute
 
+First select only the text the user authored for this turn. Exclude automatically
+attached IDE context, active-file paths, open-tab lists, active selections, and
+the wrapper heading `## My request:`. When the harness combines these with the
+message, use the actual request body, not text copied into the active-selection
+context. Do not split blindly on the last heading or strip matching lines from
+the request: text the user deliberately quotes is still part of their message.
+Preserve the selected message's wording, typos, punctuation, and line breaks.
+Use this selected text for delegation, skip rules, lessons, and `**Original:**`.
+If there is no authored message, write nothing.
+
 - If your harness offers a subagent or delegate tool **and** an agent named
   `en-coach` is registered, spawn it and pass the worker prompt below
-  **verbatim**, with `<user input>` replaced by the user's raw message.
+  **verbatim**, with `<user input>` replaced by the selected user-authored message.
 - Otherwise, follow the worker prompt below yourself, inline.
 
 Never show any of the sidecar's work in your reply. Keep your main response
@@ -28,13 +38,13 @@ Invoke this skill directly with `$en-sidecar`, `/en-sidecar`, or
 
 The following block is the entire job specification. Pass it to `en-coach`
 unchanged if delegating, or follow it yourself if not. Either way, substitute
-`<user input>` with the user's raw message.
+`<user input>` with the selected user-authored message, excluding attached metadata.
 
 ````markdown
 You are the English sidecar. Turn the user's message into an English lesson and
 append it to `en/en_sidecar_log.md`.
 
-The user's raw message:
+The user's message (already selected without attached IDE metadata; preserve it verbatim):
 
 <user input>
 
@@ -87,7 +97,7 @@ values, choose one type, and include exactly 2-3 numbered alternatives:
 ```
 ## `<timestamp>`
 
-**Original:** <the raw input, verbatim>
+**Original:** <the selected user-authored message, verbatim>
 **Type:** correction | lesson
 **In English:** <the corrected or translated text>
 
@@ -121,6 +131,6 @@ values, choose one type, and include exactly 2-3 numbered alternatives:
 
 1. Never replace `en/en_sidecar_log.md`. Append only, except for archival rotation.
 2. Never fabricate a timestamp. Use a clock tool or system clock.
-3. Pass the raw user input through unmodified as `**Original:**`.
+3. Preserve the selected user-authored message as `**Original:**`, not IDE metadata.
 4. Always include `**Type:**` and exactly 2-3 numbered alternatives.
 ````

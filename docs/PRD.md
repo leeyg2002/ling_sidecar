@@ -157,6 +157,15 @@ This is a deliberate reversal of the pattern that caused the original append bug
 
 ### 7.3 Worker spec (lives in SKILL.md, passed verbatim to the worker)
 
+Before dispatch or inline execution, select only the user-authored message for
+this turn. Exclude attached IDE context, active-file paths, open-tab lists,
+active selections, and the `## My request:` wrapper heading. Preserve deliberate
+quotations, including text resembling metadata. Use the actual request boundary
+provided by the harness; do not blindly split on the last matching heading.
+Use this selected text throughout the worker, including skip rules and
+`**Original:**`. Verbatim preserves its wording, typos, punctuation, and line
+breaks. No authored message means no entry.
+
 1. **Skip degenerate input first** (§8.1). Write nothing and make no file changes.
 2. **Decide the type** from §2 and compose the lesson with 2–3 alternatives.
 3. **Confirm capabilities before changing files.** Require reliable clock access, byte-size inspection, and an operation explicitly supporting append. If rotation is needed, require safe move support as well. Missing capabilities leave the log unchanged and produce a brief failure notice.
@@ -186,7 +195,7 @@ The set is load-bearing, not decorative: `"got it"` has whitespace and is 6 char
 ```markdown
 ## `2026-09-27 14:35:00 (Sunday)`
 
-**Original:** <raw user input, verbatim>
+**Original:** <selected user-authored message, verbatim; no attached metadata>
 **Type:** correction | lesson
 **In English:** <corrected or translated text>
 
@@ -279,7 +288,7 @@ the *work* and branches at execution time (D22):
 ```markdown
 - If your harness offers a subagent or delegate tool **and** an agent named
   `en-coach` is registered, spawn it and pass the worker prompt below
-  **verbatim**, with `<user input>` replaced by the user's raw message.
+  **verbatim**, with `<user input>` replaced by the selected user-authored message.
 - Otherwise, follow the worker prompt below yourself, inline.
 ```
 
@@ -373,6 +382,7 @@ consumer on the next pull.
 | D28 | Full reference moved to `.agents/skills/README.md`; root `README.md` is a short entry point | Two audiences. Someone browsing `.agents/skills/` expects the detail next to the `SKILL.md` files, and a harness reading the repo root needs a page that says what the thing is in under a screen. Still one shared doc for the pair, not one per skill — the ~208 lines of duplication removed in the original consolidation are not reintroduced. |
 | D29 | Plain-language logging requirements replace embedded Bash | Preserve append-only history, literal input, real clock timestamps, safe rotation, and verification while allowing environment-specific tools. No fixed temporary file is required. |
 | D30 | Rotation uses a strict greater-than threshold | Rename only when the existing log is greater than 983040 bytes; exactly the limit does not rotate. Check before appending. |
+| D31 | Log authored text, excluding attached IDE metadata | Preserve the selected message verbatim for Original, skip rules, and lessons. Keep deliberate quotations; do not mistake active-selection contents for the current request. |
 
 ---
 
@@ -399,6 +409,9 @@ consumer on the next pull.
 - [ ] A test message produces one entry in each log, with a real clock-derived timestamp in the user's timezone when known
 - [ ] `**Type:**` is correctly `correction` for target-language input and `lesson` otherwise
 - [ ] Neither log is truncated across multiple turns (append semantics hold)
+- [ ] IDE context, open tabs, active selections, and request wrappers are excluded from new entries
+- [ ] Deliberately quoted metadata remains verbatim, including embedded request headings
+- [ ] Metadata-only input and an acknowledgement wrapped in IDE context produce no entry
 - [ ] A message containing backticks, `$(...)`, or a line reading `EOF` is logged verbatim without executing
 - [ ] Degenerate input (`ok`, `thanks`, `got it`, a single token) produces no entry
 - [ ] All four modes behave correctly: none / en / fr / both

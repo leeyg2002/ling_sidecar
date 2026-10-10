@@ -101,6 +101,15 @@ and a known Codex issue about nested `SKILL.md` files.
 
 ## How entries get written
 
+Before running the worker, select only the user's authored message. Exclude
+automatically attached IDE context, active-file paths, open-tab lists, active
+selections, and the `## My request:` wrapper heading. Preserve text deliberately
+quoted within the request, even when it resembles metadata. Do not split blindly
+on the last request heading; an active selection or a quotation may contain it.
+Use the selected message for skip rules, lessons, and `Original`. Here,
+"verbatim" means retaining its wording, typos, punctuation, and line breaks.
+If no authored message remains, do not log anything.
+
 The worker instructions are plain language; no particular shell or script is
 required. Each worker:
 

@@ -73,6 +73,11 @@ in shape, with `**En Français:**` in place of `**In English:**`.
 
 ## Your logs stay local
 
+`Original` preserves only your authored message word for word, including typos.
+Automatically attached IDE context, active selections, file paths, open tabs,
+and request-wrapper headings are excluded. Text you deliberately quote remains
+part of your message. Skip rules and lessons use that same selected message.
+
 `en/` and `fr/` are gitignored and never pushed. Before appending, logs are
 renamed as timestamped archives only when their size is greater than 983040
 bytes (960 KiB). A log exactly at the limit is not rotated. Archives are kept
