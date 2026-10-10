@@ -1,15 +1,16 @@
 # ling_sidecar
 
-A sidecar is a quiet companion that runs alongside your chat. The conversation is
-never interrupted, but everything you type becomes practice material.
+A sidecar is a quiet companion that runs alongside your chat. Your messages become practice material; skipped inputs produce no entry, and
+logging failures are reported briefly.
 
 There are two of them today, one for English and one for French. Adding a third
-follows the same pattern: a skill, a subagent, and a log.
+follows the same pattern: a skill, an optional coach subagent, and a log.
 
-After every reply, each sidecar spawns a subagent that turns your raw message into
-a lesson — a correction if you already wrote in that language, a translation if
-you didn't — then offers 2–3 alternative phrasings with a note on tone and nuance.
-Every lesson lands in a local log.
+After each reply, an active sidecar follows its worker instructions, using a
+registered coach subagent when available or working inline otherwise. It turns
+your raw message into a correction or translation, then offers 2–3 alternative
+phrasings with tone and nuance notes. Eligible messages are appended to a local
+log when the required tools and permissions are available.
 
 | | English | French |
 | --- | --- | --- |
@@ -17,8 +18,8 @@ Every lesson lands in a local log.
 | Log | `en/en_sidecar_log.md` | `fr/fr_sidecar_log.md` |
 | What it does | Corrects your English; translates anything else into natural English | Corrects your French; translates anything else into natural French |
 
-Every language runs at once, so each message produces one entry per language. Turn
-one off for a session and the rest keep going.
+When both are active, each eligible message produces one entry per language
+if logging succeeds. Turn one off for a session and the other remains active.
 
 They are [Agent Skills](https://agentskills.io/specification), so the same files
 work on OpenCode, Codex, and Pi with no per-harness setup.
@@ -26,7 +27,7 @@ work on OpenCode, Codex, and Pi with no per-harness setup.
 ## Turning them on
 
 Which sidecars fire is a pure function of the `instructions` array in
-`opencode.jsonc` — empty for none, one path for one language, both paths for
+`.opencode/opencode.jsonc` — empty for none, one path for one language, both paths for
 both:
 
 ```jsonc
@@ -37,7 +38,7 @@ both:
 ```
 
 On OpenCode this fires them every turn. On Codex and Pi the skills are discovered
-and chosen from their descriptions, which is reliable but not a guarantee.
+and chosen from their descriptions, but discovery alone does not guarantee execution or log creation.
 
 Per session, in any harness:
 
@@ -72,13 +73,19 @@ in shape, with `**En Français:**` in place of `**In English:**`.
 
 ## Your logs stay local
 
-`en/` and `fr/` are gitignored and never pushed. Logs rotate at 983040 bytes and
-the old generations are kept forever, with self-describing filenames.
+`en/` and `fr/` are gitignored and never pushed. Before appending, logs are
+renamed as timestamped archives only when their size is greater than 983040
+bytes (960 KiB). A log exactly at the limit is not rotated. Archives are kept
+indefinitely, and existing archives are never overwritten.
 
-Entries are append-only: the `write` tool never touches a log directly, and the
-timestamp always comes from a real `date` call, so it cannot be fabricated.
+Entries are append-only, and timestamps come from a clock tool or system clock
+in the user's timezone when known. The instructions are plain language and do
+not require Bash, Git Bash, WSL, or a particular script. They do require safe
+append, file-size inspection, and clock access, plus safe move support when
+rotation is needed. Missing capabilities prevent logging and are reported.
 
-Requires a POSIX shell (`sh`/`bash`). On Windows that means Git Bash or WSL.
+The OpenCode-only `status` commands still use Bash for log inspection; see the
+full reference for that remaining command-specific dependency.
 
 ## Further reading
 

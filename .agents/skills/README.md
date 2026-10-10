@@ -1,15 +1,16 @@
 # ling_sidecar
 
-A sidecar is a quiet companion that runs alongside your chat. The conversation is
-never interrupted, but everything you type becomes practice material.
+A sidecar is a quiet companion that runs alongside your chat. Your messages become practice material; skipped inputs produce no entry, and
+logging failures are reported briefly.
 
 There are two of them today, one for English and one for French. Adding a third
-follows the same pattern: a skill, a subagent, and a log.
+follows the same pattern: a skill, an optional coach subagent, and a log.
 
-After every reply, each sidecar spawns a subagent that turns your raw message into
-a lesson — a correction if you already wrote in that language, a translation if
-you didn't — then offers 2–3 alternative phrasings with a note on tone and nuance.
-Every lesson lands in a local log.
+After each reply, an active sidecar follows its worker instructions, using a
+registered coach subagent when available or working inline otherwise. It turns
+your raw message into a correction or translation, then offers 2–3 alternative
+phrasings with tone and nuance notes. Eligible messages are appended to a local
+log when the required tools and permissions are available.
 
 Both are [Agent Skills](https://agentskills.io/specification), so the same files
 work on OpenCode, Codex, and Pi with no per-harness setup.
@@ -19,7 +20,8 @@ work on OpenCode, Codex, and Pi with no per-harness setup.
 | [`en-sidecar`](en-sidecar/SKILL.md) | `en/en_sidecar_log.md` | English         |
 | [`fr-sidecar`](fr-sidecar/SKILL.md) | `fr/fr_sidecar_log.md` | French          |
 
-Both are active at once, so each message produces one entry per language. Turn
+When both are active, each eligible message produces one entry per language
+if logging succeeds. Turn
 either off for a session without touching the other.
 
 ## Behaviour
@@ -29,24 +31,14 @@ either off for a session without touching the other.
 | Target language    | `correction` | grammar, spelling, awkward phrasing fixed               |
 | Any other language | `lesson`     | translated naturally, with a literal gloss where useful |
 
-Both cases then get 2–3 alternatives, each with a tone/nuance note. The `**Type:**`
-field is what makes a log filterable — to review only real mistakes:
-
-```bash
-awk 'BEGIN{RS="## `"; ORS=""} /\*\*Type:\*\* correction/{print "## `"$0"\n"}' en/en_sidecar_log.md
-```
-
-This splits the log on each ``## ` `` header and reprints only the records
-tagged `correction`, so lessons are excluded and each entry stays intact. It
-tolerates CRLF, so it also works on a log produced on Windows.
-
-Note that `awk` is not present in stock Windows — you need Git Bash or WSL for
-this one. Everything the agent itself does uses the POSIX shell documented in
-`SKILL.md`, so Windows users need a POSIX environment either way.
+Both cases get 2–3 alternatives, each with a tone/nuance note. To review
+corrections only, ask the agent to read the log and return complete entries
+whose `**Type:**` field is `correction`, without changing the file. No shell
+filter is required.
 
 French additionally checks gender and number agreement, chooses `tu` or `vous`
 deliberately (stating which and why), and flags false friends such as
-*actuellement*, *sensible*, *assister*, *librairie*, *bureau*. Calenques are
+*actuellement*, *sensible*, *assister*, *librairie*, *bureau*. Calques are
 avoided in both.
 
 ## Entry format
@@ -81,9 +73,13 @@ reports entry count, byte size, and last-entry time. On OpenCode these are
 commands in `.opencode/commands/`; elsewhere plain language works equally well
 ("turn the French sidecar off").
 
+The existing OpenCode `status` command files still use Bash for read-only log
+inspection and need a POSIX environment on Windows. This command-specific
+dependency does not apply to lesson generation or appending entries.
+
 Note that only OpenCode fires the sidecar deterministically every turn, via its
 `instructions` array. Codex and Pi choose implicitly from the skill description,
-which is reliable but not a hard guarantee.
+so discovery alone does not guarantee execution or log creation.
 
 ## Portability
 
@@ -105,20 +101,29 @@ and a known Codex issue about nested `SKILL.md` files.
 
 ## How entries get written
 
-Deliberately append-only, in two steps:
+The worker instructions are plain language; no particular shell or script is
+required. Each worker:
 
-1. The `write` tool creates a temp file with the entry body.
-2. `printf` appends a header using a real `date` call, then `cat` appends the
-   body, then the temp file is removed.
+1. Applies the skip rules before changing files.
+2. Confirms clock access, byte-size inspection, and safe append support. Safe
+   move support is also required if rotation is needed. Missing capabilities
+   leave the log unchanged and produce a brief failure notice.
+3. Obtains the current time from a clock tool or system clock, using the user's
+   timezone when known and otherwise the system timezone. Headers use
+   `YYYY-MM-DD HH:mm:ss (Weekday)` with an English weekday name.
+4. Composes a complete entry, preserving raw input verbatim as literal data.
+5. Before appending, renames a log greater than 983040 bytes (960 KiB) to
+   `<language>_sidecar_log_<YYYY-MM-DD_HH-mm-ss>.md`. Exactly 983040 bytes does
+   not trigger rotation. A unique suffix prevents archive collisions, and all
+   archives are retained.
+6. Appends the complete entry with an operation explicitly supporting append.
+   Whole-file replacement and read-and-rewrite approaches are prohibited.
+7. Verifies the saved entry and preservation of existing content. An uncertain
+   result is inspected before retrying, so retries do not duplicate entries.
+   Failures and any completed rotation are reported briefly.
 
-The `write` tool is never pointed at the log itself — it overwrites, and doing so
-destroyed real history in an earlier version of this system. The timestamp always
-comes from `date`, never typed by the model. User input is passed through
-verbatim, so shell metacharacters in a message are logged literally rather than
-executed.
-
-Rotations happen at 983040 bytes and are kept forever as
-`en_sidecar_log_<timestamp>.md`.
+Neither a fixed temporary file nor a Bash command is part of the required
+workflow. The operation chosen by the agent must still preserve existing logs.
 
 ## Skip rule
 

@@ -1,9 +1,9 @@
 # PRD — Language Sidecar (`en-sidecar` / `fr-sidecar`)
 
-**Status:** Design settled, implementation pending
-**Date:** 2026-09-27
+**Status:** Skills implemented; plain-language logging workflow adopted; full verification pending
+**Date:** 2026-10-09
 **Project:** `ling_sidecar`
-**Environment:** opencode 1.18.32, macOS
+**Environment:** Original research: opencode 1.18.32 on macOS; current editing and log creation: Codex on Windows
 
 ---
 
@@ -14,7 +14,7 @@ A pair of independent language-learning sidecars for this project:
 - `en-sidecar` — turns the user's raw message into an English lesson
 - `fr-sidecar` — turns the user's raw message into a French lesson
 
-Every reply, each sidecar spawns its own worker, which appends one structured entry to that language's log. The user never sees the worker's output. The logs are the artifact.
+After each reply, each active sidecar delegates to a registered coach when available or follows the same worker instructions inline. Eligible input produces one structured log entry when the required tools and permissions are available. Lessons remain in the logs; logging failures are reported briefly.
 
 The two sidecars are fully independent: separate skills, separate agents, separate commands, separate logs. Either can be designated on or off per project.
 
@@ -33,9 +33,9 @@ Both cases then produce 2–3 alternative phrasings, each with a tone/nuance not
 
 For non-English input translated into English, add a literal gloss in parentheses when it aids comprehension. For the French worker, additionally flag noun/adjective gender and number agreement, `tu` vs `vous` register, common false friends (*actuellement*, *sensible*, *assister*), and prefer native phrasing over calques from English or Chinese.
 
-**Activation rule:** the worker is spawned after every reply, *unless the user has said otherwise in this session*.
+**Activation rule:** follow the worker instructions after every reply unless the user has turned that language off for the session. Delegate only when the named coach is registered; otherwise execute inline. Skill discovery alone does not prove execution.
 
-**Visibility rule:** the worker never surfaces output into the conversation, and the sidecar is never mentioned to the user unless they ask.
+**Visibility rule:** keep lesson output out of the conversation unless requested. Briefly report logging failures, including any rotation already completed; this is the exception to silent operation.
 
 ---
 
@@ -52,7 +52,7 @@ Three namespaces, no collisions:
 | Log file | `en_sidecar_log.md` | `fr_sidecar_log.md` | — |
 | Rotated log | `en_sidecar_log_<ts>.md` | `fr_sidecar_log_<ts>.md` | — |
 
-`<ts>` = `date '+%Y-%m-%d_%H-%M-%S'`.
+`<ts>` = clock-derived `YYYY-MM-DD_HH-mm-ss`, with a unique suffix if an archive filename already exists.
 
 The agent is deliberately named `*-coach` rather than matching the skill, so the `@` autocomplete menu shows two distinct labels instead of two identical ones. Humans trigger a sidecar with `/en-sidecar`; the model resolves `@en-sidecar` (skill) and `@en-coach` (agent) by tool parameter.
 
@@ -157,22 +157,15 @@ This is a deliberate reversal of the pattern that caused the original append bug
 
 ### 7.3 Worker spec (lives in SKILL.md, passed verbatim to the worker)
 
-1. **Rotate if oversized.** If the log is ≥ 983040 bytes, move it to `<log>_<timestamp>.md` and `touch` a fresh one.
-2. **Skip if degenerate** (§8.1) — write nothing and stop.
-3. **Decide `correction` or `lesson`** from §2.
-4. **Write the body to a temp file, then append both parts.** The body goes to `en/.sidecar-entry.tmp` via the `write` tool — never to the log, since `write` overwrites. The header is generated in shell, so the timestamp can never be fabricated:
-   ```bash
-   mkdir -p en
-   printf '\n## `%s`\n\n' "$(date '+%Y-%m-%d %H:%M:%S (%A)')" >> en/en_sidecar_log.md
-   cat en/.sidecar-entry.tmp >> en/en_sidecar_log.md
-   rm -f en/.sidecar-entry.tmp
-   ```
-5. **The temp file is what makes the body safe**, so backticks, `$(...)`, or any line of user text pass through unexpanded and unexecuted. A quoted heredoc (`<<'EOF'`) was the earlier design and was rejected: it cannot carry the user's raw input through a shell unexpanded, so the body still had to be written by a tool first — the temp file is that tool's output, with no shell quoting in between.
-6. **Never use the `write` tool on the log itself.** It overwrites. This is the one instruction that must not be relaxed.
+1. **Skip degenerate input first** (§8.1). Write nothing and make no file changes.
+2. **Decide the type** from §2 and compose the lesson with 2–3 alternatives.
+3. **Confirm capabilities before changing files.** Require reliable clock access, byte-size inspection, and an operation explicitly supporting append. If rotation is needed, require safe move support as well. Missing capabilities leave the log unchanged and produce a brief failure notice.
+4. **Obtain a real timestamp.** Use a clock tool or system clock, the user's timezone when known (otherwise the system timezone), and `YYYY-MM-DD HH:mm:ss (Weekday)` with an English weekday name. Never guess or save a placeholder timestamp.
+5. **Rotate only above the limit.** Before appending, if the log is greater than 983040 bytes (960 KiB), move it intact to `<log>_<timestamp>.md`. At exactly 983040 bytes, do not rotate. Never overwrite an archive; use a unique suffix on collision. Create the fresh log through append.
+6. **Append the complete entry.** Ensure the language directory exists. Treat the entry and raw input as literal data. Never replace the whole log or read and rewrite it. A fixed temporary file and a particular shell or script are not required.
+7. **Verify the result.** Confirm that the complete entry was saved and prior content preserved, using the operation result and read-only inspection as needed. Inspect uncertain results before retrying to avoid duplicates. Report failures and any rotation already completed.
 
-Step 4 exists because the timestamp was previously requested politely in a prompt and the log ended up with five competing formats — including a literally-pasted placeholder and a fabricated `12:00:00 GMT+0000`. Generating the header in shell makes fabrication structurally impossible rather than merely discouraged.
-
-Step 5's temp file is not decoration. The body has to reach disk through the `write` tool either way — a quoted heredoc does not remove that step, it only adds a shell quoting boundary between the tool output and the log, which is exactly where the raw user input could get expanded. Writing to a temp file and `cat`-ing it appends the tool's bytes directly, so there is no shell interpretation of user text at all.
+These are plain-language requirements, not an embedded implementation. The agent chooses available tools that meet the requirements. Removing Bash does not remove the need for file operations, real clock access, or write permission.
 
 ---
 
@@ -204,11 +197,11 @@ The set is load-bearing, not decorative: `"got it"` has whitespace and is 6 char
 ---
 ```
 
-The French log uses **`**En Français:**`** (with the cedilla) in place of `**In English:**`, and nothing else changes.
+The French log uses **`**En Français:**`** (with the cedilla) in place of `**In English:**`, and additionally states the chosen `tu`/`vous` register and why.
 
 `**Type:**` distinguishes a correction from a lesson, so the log can be filtered for "only my actual mistakes" without inferring intent by comparing `Original` to the output.
 
-`## \`<timestamp>\`` keeps the literal backticks. The timestamp is produced by `date` in shell (see §7.3 step 4) and must never be guessed.
+`## \`<timestamp>\`` keeps the literal backticks. The timestamp comes from a clock tool or system clock (see §7.3 step 4) and must never be guessed.
 
 ---
 
@@ -362,22 +355,24 @@ consumer on the next pull.
 | D10 | Per-language commands, not one parameterised command | No argument parsing; each carries its own language |
 | D11 | Command surface is on / off / status | Natural language also deactivates, so toggle state is unnecessary |
 | D12 | Commands are thin; `SKILL.md` is the only spec | Closes the duplication class that caused the original append bug |
-| D13 | `printf` header + temp-file body, appended by `cat` | The timestamp comes from a real `date` call, so fabrication is structurally impossible. (Corrected from an earlier quoted-heredoc design, which could not pass the user's raw input through unexpanded.) |
+| D13 | Historical temp-file append implementation | Superseded by D29. The invariant remains: append literal input without replacing existing log content. |
 | D14 | Mechanical skip rule, not semantic | Semantic judgement produced five inconsistent timestamp formats |
 | D15 | `**Type:**` field | Makes the log filterable for actual mistakes |
 | D16 | Target-language label as the field name | Correct for both correction and lesson cases |
-| D17 | No `plan` write carve-out | Reversed from the original D17. The carve-out could not help: the append needs a `bash` step, which plan mode denies, so a `write` grant alone never completes an entry. Worse, `write allow en/**` would let a read-only agent overwrite the log, which has no version-control recovery. Removed outright. |
+| D17 | No write carve-out for read-only plan mode | Logging requires write permission. A broad write grant could overwrite unversioned logs; removing Bash does not authorize writes in a read-only mode. |
 | D18 | `{"*": "ask", ...}` explicit fallback | Retained as a config style for any future narrow carve-out; no longer used, since the D17 block is gone. |
 | D19 | Logs gitignored, rotations kept forever | Personal study material; filenames self-describe, so no index needed |
 | D20 | Relative symlinks for distribution | Survives moves and clones of either repo |
 | D21 | Soft gate accepted over hard denial | Deterministic firing judged more valuable than hard denial (§9.1) |
 | D22 | Skills moved to `.agents/skills/` | The Agent Skills standard path, read natively by OpenCode, Codex, and Pi. One committed copy serves all three with no per-harness config (§10.1) |
-| D23 | `SKILL.md` branches on subagent availability instead of naming one API | Worker dispatch is the only non-portable layer. Degrading to inline execution works everywhere today; hardcoding `task`/`subagent_type` would silently no-op on Codex and Pi (§10.2) |
+| D23 | `SKILL.md` branches on subagent availability instead of naming one API | Worker dispatch and available file-operation tools vary by harness. Degrading to inline execution works everywhere today; hardcoding `task`/`subagent_type` would silently no-op on Codex and Pi (§10.2) |
 | D24 | Worker prompt block kept byte-identical across the branch | The single-source-of-truth rule (D12) must survive the portability refactor, or the duplication class that caused the original append bug returns |
 | D25 | Canonical copy committed in-repo only, not symlinked into `~/.agents/skills/` | Avoids a global install that would make the sidecar fire in every project on the machine. Distribution stays explicit, per consumer (§10.4) |
 | D26 | `plan` permission block removed | No functional benefit, real data-loss risk (D17) |
-| D27 | `.gitattributes` pins `eol=lf` | A Windows clone would otherwise check out CRLF, which silently breaks `^## ` ` pattern matching against the markdown. Not applied to `en/`/`fr/`: those are gitignored, so git never sees them. The logs are written by the POSIX shell and are LF regardless. |
+| D27 | `.gitattributes` pins `eol=lf` | A Windows clone would otherwise check out CRLF, which silently breaks `^## ` ` pattern matching against the markdown. Not applied to `en/`/`fr/`: those are gitignored, so git never sees them. Logs may use LF or CRLF depending on the chosen append operation; readers must tolerate both. |
 | D28 | Full reference moved to `.agents/skills/README.md`; root `README.md` is a short entry point | Two audiences. Someone browsing `.agents/skills/` expects the detail next to the `SKILL.md` files, and a harness reading the repo root needs a page that says what the thing is in under a screen. Still one shared doc for the pair, not one per skill — the ~208 lines of duplication removed in the original consolidation are not reintroduced. |
+| D29 | Plain-language logging requirements replace embedded Bash | Preserve append-only history, literal input, real clock timestamps, safe rotation, and verification while allowing environment-specific tools. No fixed temporary file is required. |
+| D30 | Rotation uses a strict greater-than threshold | Rename only when the existing log is greater than 983040 bytes; exactly the limit does not rotate. Check before appending. |
 
 ---
 
@@ -401,7 +396,7 @@ consumer on the next pull.
 - [ ] Both commands appear in the `/` menu
 - [ ] `en-coach` and `fr-coach` resolve as `task` subagent types
 - [ ] `en-coach` and `fr-coach` are distinct labels in the `@` menu
-- [ ] A test message produces one entry in each log, with a real `date`-generated timestamp
+- [ ] A test message produces one entry in each log, with a real clock-derived timestamp in the user's timezone when known
 - [ ] `**Type:**` is correctly `correction` for target-language input and `lesson` otherwise
 - [ ] Neither log is truncated across multiple turns (append semantics hold)
 - [ ] A message containing backticks, `$(...)`, or a line reading `EOF` is logged verbatim without executing
@@ -409,7 +404,10 @@ consumer on the next pull.
 - [ ] All four modes behave correctly: none / en / fr / both
 - [ ] `/en-sidecar off` stops English and leaves French running
 - [ ] `/en-sidecar status` reports a real last-entry time and count
-- [ ] Rotation at 983040 bytes produces `en_sidecar_log_<ts>.md` and a fresh log
+- [ ] Exactly 983040 bytes does not rotate; greater than 983040 bytes produces a preserved archive and a fresh log before append
+- [ ] An archive filename collision never overwrites an existing archive
+- [ ] Missing clock or safe file-operation support leaves the log unchanged and reports failure
+- [ ] An uncertain append result is inspected before retrying, without duplicating an entry
 - [ ] Imported history is intact in `en/en_sidecar_log.md`
 
 Note: `[ ]` entry-format checks above are manual. There is no automated validator — status reporting catches a sidecar that stopped firing, but not one that is firing with a malformed entry.
@@ -428,7 +426,7 @@ Note: `[ ]` entry-format checks above are manual. There is no automated validato
 | Rotations never pruned | `en/` grows without bound | **Accepted** (D19); filenames are self-describing |
 | Not a git repo yet | Symlinks in consumers will not resolve until step 1 | Resolved by step 1 |
 | Codex and Pi run the work inline | No context isolation on those harnesses; sidecar reasoning sits in the main conversation, so a slip could leak commentary into the reply | **Accepted** (D23). Fixable with `.codex/agents/*.toml` (built in) or `.pi/agents/*.md` (needs an extension) — §10.3 |
-| POSIX-shell dependency | Every code block in `SKILL.md` and both commands assumes `sh`/`bash` (`printf`, `$(date …)`, `[ -f ]`, `wc -c`, `rm -f`). On Windows these need Git Bash or WSL; a model improvising in PowerShell risks malformed entries or a truncated log | **Accepted for now** (D27). Making it portable means extracting a script with a PowerShell sibling — a listed future improvement. `awk` in `.agents/skills/README.md` has the same dependency, but is human-facing only |
+| Tool-dependent logging | Plain-language instructions rely on available safe append, size, clock, and move operations | **Accepted** (D29). No required POSIX shell; missing capabilities are reported without claiming success. OpenCode status commands retain their existing Bash implementation. |
 | Implicit skill invocation is host-dependent | Codex and Pi may not load the skill after every reply the way OpenCode's `instructions` array guarantees | **Accepted**. D22 makes the skill *discoverable* everywhere; only OpenCode has a deterministic per-turn gate (§5) |
 
 ### Future improvements
@@ -438,8 +436,8 @@ Note: `[ ]` entry-format checks above are manual. There is no automated validato
 - Add a validator that checks recent entries for header, required fields, and plausible target-language content
 - Add `.codex/agents/{en,fr}-coach.toml` for real Codex subagent isolation (§10.3)
 - Evaluate a Pi subagent extension before committing to `.pi/agents/*.md` (§10.3)
-- Extract the rotate/skip/append steps into a `scripts/` helper so all three harnesses run identical shell, and serialisation is enforced in code rather than by model discipline
-- Ship that `scripts/` helper with a PowerShell sibling, and document Git Bash / WSL as the supported route for Windows until then (the `SKILL.md` shell blocks cannot run under `cmd.exe` or PowerShell as written)
+- Evaluate the plain-language workflow across harnesses with history preservation, literal input, timezone, rotation-boundary, and duplicate-retry scenarios
+- Convert the OpenCode-only status commands to plain-language read-only instructions if their Bash dependency becomes a portability issue
 - Consolidate other projects onto this design via the symlink set in §10.4
 - Consider `color` on each agent for visual distinction in the TUI
 - Add further languages, following the same three-namespace pattern
